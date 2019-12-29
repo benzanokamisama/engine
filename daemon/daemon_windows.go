@@ -35,7 +35,6 @@ import (
 
 const (
 	isWindows            = true
-	defaultNetworkSpace  = "172.16.0.0/12"
 	platformSupported    = true
 	windowsMinCPUShares  = 1
 	windowsMaxCPUShares  = 10000
@@ -223,8 +222,7 @@ func verifyDaemonSettings(config *config.Config) error {
 func checkSystem() error {
 	// Validate the OS version. Note that dockerd.exe must be manifested for this
 	// call to return the correct version.
-	osv := system.GetOSVersion()
-	if osv.MajorVersion < 10 {
+	if osversion.Get().MajorVersion < 10 {
 		return fmt.Errorf("This version of Windows does not support the docker daemon")
 	}
 	if osversion.Build() < osversion.RS1 {
@@ -427,15 +425,19 @@ func initBridgeDriver(controller libnetwork.NetworkController, config *config.Co
 		winlibnetwork.NetworkName: runconfig.DefaultDaemonNetworkMode().NetworkName(),
 	}
 
-	subnetPrefix := defaultNetworkSpace
+	var ipamOption libnetwork.NetworkOption
+	var subnetPrefix string
+
 	if config.BridgeConfig.FixedCIDR != "" {
 		subnetPrefix = config.BridgeConfig.FixedCIDR
 	}
 
-	ipamV4Conf := libnetwork.IpamConf{PreferredPool: subnetPrefix}
-	v4Conf := []*libnetwork.IpamConf{&ipamV4Conf}
-	v6Conf := []*libnetwork.IpamConf{}
-	ipamOption := libnetwork.NetworkOptionIpam("default", "", v4Conf, v6Conf, nil)
+	if subnetPrefix != "" {
+		ipamV4Conf := libnetwork.IpamConf{PreferredPool: subnetPrefix}
+		v4Conf := []*libnetwork.IpamConf{&ipamV4Conf}
+		v6Conf := []*libnetwork.IpamConf{}
+		ipamOption = libnetwork.NetworkOptionIpam("default", "", v4Conf, v6Conf, nil)
+	}
 
 	_, err := controller.NewNetwork(string(runconfig.DefaultDaemonNetworkMode()), runconfig.DefaultDaemonNetworkMode().NetworkName(), "",
 		libnetwork.NetworkOptionGeneric(options.Generic{
